@@ -1,0 +1,1266 @@
+openapi: 3.0.0
+info:
+  title: Camera AI Retail Management API
+  description: |
+    API for managing retail store surveillance, analytics, and AI-powered insights.
+    
+    This RESTful API enables real-time monitoring, customer analytics, alert management, 
+    and system configuration for retail environments using AI-powered camera systems.
+    
+    ## Features
+    - Real-time camera monitoring and management
+    - AI-powered alert detection and management
+    - Customer analytics and demographics
+    - Store heatmap and flow analysis
+    - Webhook notifications for real-time events
+    - Comprehensive settings and user management
+    
+    ## Authentication
+    This API uses JWT (JSON Web Token) authentication. Include the token in the 
+    Authorization header for all requests.
+    
+    ## Rate Limiting
+    - 1000 requests per hour per API key
+    - 100 requests per minute per IP address
+    - 10 concurrent connections per API key
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api-support@camera-ai-retail.com
+    url: https://docs.camera-ai-retail.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.camera-ai-retail.com/v1
+    description: Production server
+  - url: https://staging-api.camera-ai-retail.com/v1
+    description: Staging server
+  - url: http://localhost:3000/api/v1
+    description: Local development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Authentication Endpoints
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticate user and receive JWT token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: manager@store.com
+                password:
+                  type: string
+                  format: password
+                  example: secure_password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      refreshToken:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      expiresIn:
+                        type: integer
+                        example: 3600
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # Dashboard Endpoints
+  /dashboard/stats:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard statistics
+      description: Retrieve real-time dashboard statistics including visitor counts and system status
+      parameters:
+        - name: date
+          in: query
+          description: Date for statistics (YYYY-MM-DD format)
+          schema:
+            type: string
+            format: date
+            example: "2025-01-27"
+        - name: store_id
+          in: query
+          description: Specific store ID
+          schema:
+            type: string
+            example: store_001
+      responses:
+        '200':
+          description: Dashboard statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/DashboardStats'
+                  meta:
+                    type: object
+                    properties:
+                      lastUpdated:
+                        type: string
+                        format: date-time
+                      dataSource:
+                        type: string
+                        example: real-time
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /dashboard/customer-flow:
+    get:
+      tags: [Dashboard]
+      summary: Get customer flow data
+      description: Retrieve customer flow data for charts and analytics
+      parameters:
+        - name: period
+          in: query
+          description: Time period
+          schema:
+            type: string
+            enum: [today, yesterday, week, month]
+            default: today
+        - name: interval
+          in: query
+          description: Data interval
+          schema:
+            type: string
+            enum: [hour, day]
+            default: hour
+        - name: start_date
+          in: query
+          description: Start date (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          description: End date (ISO 8601 format)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Customer flow data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CustomerFlow'
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      period:
+                        type: string
+                      interval:
+                        type: string
+
+  /dashboard/heatmap:
+    get:
+      tags: [Dashboard]
+      summary: Get heatmap data
+      description: Retrieve heatmap data for store activity visualization
+      parameters:
+        - name: date
+          in: query
+          description: Date for heatmap data
+          schema:
+            type: string
+            format: date
+        - name: zone
+          in: query
+          description: Specific zone filter
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Heatmap data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HeatmapData'
+
+  # Camera Endpoints
+  /cameras:
+    get:
+      tags: [Cameras]
+      summary: List all cameras
+      description: Retrieve a list of all cameras in the system
+      parameters:
+        - name: status
+          in: query
+          description: Filter by camera status
+          schema:
+            type: string
+            enum: [online, offline, maintenance]
+        - name: zone
+          in: query
+          description: Filter by zone
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Cameras retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Camera'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags: [Cameras]
+      summary: Create new camera
+      description: Add a new camera to the system
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CameraCreate'
+      responses:
+        '201':
+          description: Camera created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Camera'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /cameras/{camera_id}:
+    get:
+      tags: [Cameras]
+      summary: Get camera details
+      description: Retrieve detailed information about a specific camera
+      parameters:
+        - name: camera_id
+          in: path
+          required: true
+          description: Camera identifier
+          schema:
+            type: string
+            example: cam-001
+      responses:
+        '200':
+          description: Camera details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/CameraDetailed'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+    put:
+      tags: [Cameras]
+      summary: Update camera
+      description: Update camera configuration and settings
+      parameters:
+        - name: camera_id
+          in: path
+          required: true
+          description: Camera identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CameraUpdate'
+      responses:
+        '200':
+          description: Camera updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Camera'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      tags: [Cameras]
+      summary: Delete camera
+      description: Remove a camera from the system
+      parameters:
+        - name: camera_id
+          in: path
+          required: true
+          description: Camera identifier
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Camera deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # Alert Endpoints
+  /alerts:
+    get:
+      tags: [Alerts]
+      summary: List alerts
+      description: Retrieve a list of alerts with filtering options
+      parameters:
+        - name: status
+          in: query
+          description: Filter by alert status
+          schema:
+            type: string
+            enum: [new, viewed, resolved]
+        - name: type
+          in: query
+          description: Filter by alert type
+          schema:
+            type: string
+            enum: [suspicious_behavior, crowding, queue_length, abandoned_item, unauthorized_area]
+        - name: severity
+          in: query
+          description: Filter by severity
+          schema:
+            type: string
+            enum: [low, medium, high]
+        - name: start_date
+          in: query
+          description: Start date filter
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          description: End date filter
+          schema:
+            type: string
+            format: date-time
+        - name: camera_id
+          in: query
+          description: Filter by camera
+          schema:
+            type: string
+        - name: zone
+          in: query
+          description: Filter by zone
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Number of results
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          description: Pagination offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  meta:
+                    allOf:
+                      - $ref: '#/components/schemas/PaginationMeta'
+                      - type: object
+                        properties:
+                          unresolved:
+                            type: integer
+                            description: Number of unresolved alerts
+
+    post:
+      tags: [Alerts]
+      summary: Create manual alert
+      description: Create a manual alert entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlertCreate'
+      responses:
+        '201':
+          description: Alert created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Alert'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /alerts/{alert_id}/status:
+    patch:
+      tags: [Alerts]
+      summary: Update alert status
+      description: Update the status of a specific alert
+      parameters:
+        - name: alert_id
+          in: path
+          required: true
+          description: Alert identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [new, viewed, resolved]
+                  example: resolved
+                notes:
+                  type: string
+                  example: Issue investigated and resolved
+                resolvedBy:
+                  type: string
+                  example: user_123
+      responses:
+        '200':
+          description: Alert status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      status:
+                        type: string
+                      resolvedAt:
+                        type: string
+                        format: date-time
+                      resolvedBy:
+                        type: string
+                      notes:
+                        type: string
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  # Analytics Endpoints
+  /analytics/demographics:
+    get:
+      tags: [Analytics]
+      summary: Get demographics data
+      description: Retrieve customer demographics analytics
+      parameters:
+        - name: start_date
+          in: query
+          description: Start date for analysis
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: End date for analysis
+          schema:
+            type: string
+            format: date
+        - name: zone
+          in: query
+          description: Filter by specific zone
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Demographics data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Demographics'
+                  meta:
+                    type: object
+                    properties:
+                      totalSamples:
+                        type: integer
+                      confidenceLevel:
+                        type: number
+                        format: float
+                      period:
+                        type: string
+
+  /analytics/weekly-flow:
+    get:
+      tags: [Analytics]
+      summary: Get weekly flow analytics
+      description: Retrieve weekly customer flow analytics
+      responses:
+        '200':
+          description: Weekly flow data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeeklyFlow'
+
+  # Settings Endpoints
+  /settings:
+    get:
+      tags: [Settings]
+      summary: Get system settings
+      description: Retrieve current system configuration
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/SystemSettings'
+
+    put:
+      tags: [Settings]
+      summary: Update system settings
+      description: Update system configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SystemSettingsUpdate'
+      responses:
+        '200':
+          description: Settings updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      updated:
+                        type: boolean
+                      timestamp:
+                        type: string
+                        format: date-time
+                      updatedBy:
+                        type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: user_123
+        email:
+          type: string
+          format: email
+          example: manager@store.com
+        name:
+          type: string
+          example: Store Manager
+        role:
+          type: string
+          enum: [admin, manager, operator, viewer]
+          example: manager
+        permissions:
+          type: array
+          items:
+            type: string
+          example: [read:cameras, write:alerts]
+
+    DashboardStats:
+      type: object
+      properties:
+        todayVisitors:
+          type: integer
+          description: Total visitors today
+          example: 847
+        currentVisitors:
+          type: integer
+          description: Current visitors in store
+          example: 23
+        averageStayTime:
+          type: number
+          format: float
+          description: Average stay time in minutes
+          example: 18.5
+        conversionRate:
+          type: number
+          format: float
+          description: Conversion rate percentage
+          example: 12.8
+        peakHour:
+          type: string
+          description: Peak hour of the day
+          example: "14:00"
+        busyZones:
+          type: array
+          items:
+            type: string
+          example: [fashion, electronics]
+        systemStatus:
+          type: object
+          properties:
+            camerasOnline:
+              type: integer
+            camerasTotal:
+              type: integer
+            alertsUnresolved:
+              type: integer
+
+    CustomerFlow:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-27T08:00:00Z"
+        count:
+          type: integer
+          description: Number of customers
+          example: 12
+        hour:
+          type: integer
+          description: Hour of the day (0-23)
+          example: 8
+
+    HeatmapData:
+      type: object
+      properties:
+        x:
+          type: number
+          format: float
+          description: X coordinate (percentage)
+          example: 10.5
+        y:
+          type: number
+          format: float
+          description: Y coordinate (percentage)
+          example: 90.2
+        intensity:
+          type: number
+          format: float
+          description: Activity intensity (0-1)
+          example: 0.9
+        zone:
+          type: string
+          description: Zone identifier
+          example: entrance
+
+    Camera:
+      type: object
+      required: [id, name, location, status]
+      properties:
+        id:
+          type: string
+          description: Unique camera identifier
+          example: cam-001
+        name:
+          type: string
+          description: Camera display name
+          example: Camera Lối vào chính
+        location:
+          type: string
+          description: Physical location
+          example: Entrance
+        status:
+          type: string
+          enum: [online, offline, maintenance]
+          description: Camera operational status
+          example: online
+        streamUrl:
+          type: string
+          format: uri
+          description: Video stream URL
+          example: rtmp://stream.example.com/cam-001
+        zone:
+          type: string
+          description: Zone identifier
+          example: entrance
+        resolution:
+          type: string
+          description: Video resolution
+          example: 1920x1080
+        fps:
+          type: integer
+          description: Frames per second
+          example: 30
+        lastSeen:
+          type: string
+          format: date-time
+          description: Last communication timestamp
+        capabilities:
+          type: array
+          items:
+            type: string
+          example: [motion_detection, face_recognition, object_tracking]
+
+    CameraDetailed:
+      allOf:
+        - $ref: '#/components/schemas/Camera'
+        - type: object
+          properties:
+            settings:
+              type: object
+              properties:
+                motionSensitivity:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                recordingEnabled:
+                  type: boolean
+                alertsEnabled:
+                  type: boolean
+            stats:
+              type: object
+              properties:
+                uptime:
+                  type: number
+                  format: float
+                  description: Uptime percentage
+                avgBandwidth:
+                  type: string
+                  description: Average bandwidth usage
+                storageUsed:
+                  type: string
+                  description: Storage space used
+
+    CameraCreate:
+      type: object
+      required: [name, location, zone]
+      properties:
+        name:
+          type: string
+          example: New Camera
+        location:
+          type: string
+          example: Storage Room
+        zone:
+          type: string
+          example: storage
+        streamUrl:
+          type: string
+          format: uri
+          example: rtmp://stream.example.com/new-cam
+        settings:
+          type: object
+          properties:
+            motionSensitivity:
+              type: number
+              format: float
+              default: 0.7
+            recordingEnabled:
+              type: boolean
+              default: true
+            alertsEnabled:
+              type: boolean
+              default: true
+
+    CameraUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        location:
+          type: string
+        zone:
+          type: string
+        settings:
+          type: object
+          properties:
+            motionSensitivity:
+              type: number
+              format: float
+            recordingEnabled:
+              type: boolean
+            alertsEnabled:
+              type: boolean
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          example: alert-001
+        type:
+          type: string
+          enum: [suspicious_behavior, crowding, queue_length, abandoned_item, unauthorized_area]
+          example: suspicious_behavior
+        message:
+          type: string
+          example: Phát hiện hành vi đáng ngờ tại khu thời trang
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-27T10:25:00Z"
+        camera:
+          type: string
+          description: Camera identifier
+          example: cam-002
+        zone:
+          type: string
+          description: Zone identifier
+          example: fashion
+        status:
+          type: string
+          enum: [new, viewed, resolved]
+          example: new
+        severity:
+          type: string
+          enum: [low, medium, high]
+          example: high
+        confidence:
+          type: number
+          format: float
+          description: AI confidence score (0-1)
+          example: 0.92
+        metadata:
+          type: object
+          description: Additional alert-specific data
+          additionalProperties: true
+
+    AlertCreate:
+      type: object
+      required: [type, message, camera, zone, severity]
+      properties:
+        type:
+          type: string
+          enum: [suspicious_behavior, crowding, queue_length, abandoned_item, unauthorized_area, maintenance_required]
+        message:
+          type: string
+        camera:
+          type: string
+        zone:
+          type: string
+        severity:
+          type: string
+          enum: [low, medium, high]
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Demographics:
+      type: object
+      properties:
+        age_group:
+          type: string
+          example: 18-25
+        gender:
+          type: string
+          enum: [male, female, other]
+          example: female
+        count:
+          type: integer
+          example: 52
+        percentage:
+          type: number
+          format: float
+          example: 29.0
+
+    WeeklyFlow:
+      type: object
+      properties:
+        day:
+          type: string
+          enum: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+          example: monday
+        dayName:
+          type: string
+          example: Thứ 2
+        visitors:
+          type: integer
+          example: 245
+        avgStayTime:
+          type: number
+          format: float
+          description: Average stay time in minutes
+          example: 16.5
+        peakHour:
+          type: string
+          example: "15:00"
+
+    SystemSettings:
+      type: object
+      properties:
+        alertThresholds:
+          type: object
+          properties:
+            queueLength:
+              type: integer
+              description: Queue length threshold
+              example: 5
+            crowdDensity:
+              type: number
+              format: float
+              description: Crowd density threshold (people per m²)
+              example: 3.0
+            abandonedItemTime:
+              type: integer
+              description: Abandoned item time threshold (minutes)
+              example: 10
+        notifications:
+          type: object
+          properties:
+            emailEnabled:
+              type: boolean
+            smsEnabled:
+              type: boolean
+            webhookEnabled:
+              type: boolean
+            soundAlerts:
+              type: boolean
+        recording:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            retention:
+              type: integer
+              description: Retention period in days
+            quality:
+              type: string
+              enum: [low, medium, high]
+        analytics:
+          type: object
+          properties:
+            demographicsEnabled:
+              type: boolean
+            heatmapEnabled:
+              type: boolean
+            flowAnalysisEnabled:
+              type: boolean
+
+    SystemSettingsUpdate:
+      type: object
+      properties:
+        alertThresholds:
+          type: object
+          properties:
+            queueLength:
+              type: integer
+            crowdDensity:
+              type: number
+              format: float
+            abandonedItemTime:
+              type: integer
+        notifications:
+          type: object
+          properties:
+            emailEnabled:
+              type: boolean
+            smsEnabled:
+              type: boolean
+            webhookEnabled:
+              type: boolean
+            soundAlerts:
+              type: boolean
+
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total number of items
+        limit:
+          type: integer
+          description: Number of items per page
+        offset:
+          type: integer
+          description: Current offset
+        hasMore:
+          type: boolean
+          description: Whether there are more items
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Invalid request parameters
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+            timestamp:
+              type: string
+              format: date-time
+            requestId:
+              type: string
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: AUTHENTICATION_REQUIRED
+              message: Valid authentication token required
+              timestamp: "2025-01-27T10:30:00Z"
+              requestId: req_abc123
+
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: INSUFFICIENT_PERMISSIONS
+              message: User lacks required permissions
+              timestamp: "2025-01-27T10:30:00Z"
+              requestId: req_abc123
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: RESOURCE_NOT_FOUND
+              message: Requested resource does not exist
+              timestamp: "2025-01-27T10:30:00Z"
+              requestId: req_abc123
+
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: VALIDATION_ERROR
+              message: Invalid request parameters
+              details:
+                - field: camera_id
+                  message: Camera ID is required
+                - field: zone
+                  message: Zone must be one of [entrance, fashion, electronics, checkout, storage]
+              timestamp: "2025-01-27T10:30:00Z"
+              requestId: req_abc123
+
+    RateLimitError:
+      description: Rate limit exceeded
+      headers:
+        X-RateLimit-Limit:
+          description: Request limit per hour
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          description: Remaining requests in current window
+          schema:
+            type: integer
+        X-RateLimit-Reset:
+          description: Time when rate limit resets (Unix timestamp)
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: RATE_LIMIT_EXCEEDED
+              message: API rate limit exceeded
+              timestamp: "2025-01-27T10:30:00Z"
+              requestId: req_abc123
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            success: false
+            error:
+              code: INTERNAL_SERVER_ERROR
+              message: An unexpected error occurred
+              timestamp: "2025-01-27T10:30:00Z"
+              requestId: req_abc123
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Dashboard
+    description: Dashboard statistics and real-time data
+  - name: Cameras
+    description: Camera management and monitoring
+  - name: Analytics
+    description: Customer analytics and insights
+  - name: Alerts
+    description: AI-powered alert management
+  - name: Settings
+    description: System configuration and user management
